@@ -1184,7 +1184,13 @@ void PerfMemory::create_memory_region(size_t size) {
         warning("Reverting to non-shared PerfMemory region.\n");
       }
       PerfDisableSharedMem = true;
+      PerfAsyncSharedMem = false;
       _start = create_standard_memory(size);
+    } else {
+      if (PerfAsyncSharedMem) {
+        _shared_start = _start;
+        _start = create_standard_memory(size);
+      }
     }
   }
 
@@ -1200,7 +1206,7 @@ void PerfMemory::create_memory_region(size_t size) {
 //
 void PerfMemory::delete_memory_region() {
 
-  assert((start() != NULL && capacity() > 0), "verify proper state");
+  assert(((PerfAsyncSharedMem ? shared_start() : start()) != NULL && capacity() > 0), "verify proper state");
 
   // If user specifies PerfDataSaveFile, it will save the performance data
   // to the specified file name no matter whether PerfDataSaveToFile is specified
@@ -1214,7 +1220,7 @@ void PerfMemory::delete_memory_region() {
     delete_standard_memory(start(), capacity());
   }
   else {
-    delete_shared_memory(start(), capacity());
+    delete_shared_memory(PerfAsyncSharedMem ? shared_start() : start(), capacity());
   }
 }
 
@@ -1236,7 +1242,7 @@ void PerfMemory::delete_memory_region() {
 void PerfMemory::attach(const char* user, int vmid, PerfMemoryMode mode, char** addrp, size_t* sizep, TRAPS) {
 
   if (vmid == 0 || vmid == os::current_process_id()) {
-     *addrp = start();
+     *addrp = PerfAsyncSharedMem ? shared_start() : start();
      *sizep = capacity();
      return;
   }
@@ -1265,7 +1271,8 @@ void PerfMemory::detach(char* addr, size_t bytes, TRAPS) {
   assert(addr != 0, "address sanity check");
   assert(bytes > 0, "capacity sanity check");
 
-  if (PerfMemory::contains(addr) || PerfMemory::contains(addr + bytes - 1)) {
+  if (PerfMemory::contains(addr) || PerfMemory::contains(addr + bytes - 1) ||
+      (PerfAsyncSharedMem && addr >= shared_start() && addr < shared_start() + capacity())) {
     // prevent accidental detachment of this process's PerfMemory region
     return;
   }

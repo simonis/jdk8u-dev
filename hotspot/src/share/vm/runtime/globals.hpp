@@ -3806,6 +3806,10 @@ class CommandLineFlags {
   develop(bool, PerfTraceMemOps, false,                                     \
           "Trace PerfMemory create/attach/detach calls")                    \
                                                                             \
+  product(bool, PerfAsyncSharedMem, false,                                  \
+          "Store performance data in shared memory but write it "           \
+          "asynchronuously")                                                \
+                                                                            \
   product(bool, PerfDisableSharedMem, false,                                \
           "Store performance data in standard memory")                      \
                                                                             \

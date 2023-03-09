@@ -86,10 +86,55 @@ void StatSampler::initialize() {
 
 }
 
+class AsyncPerfWriter : public Thread {
+  friend class StatSampler;
+  private:
+    volatile bool _initialized;
+  public:
+  AsyncPerfWriter() : _initialized(false) {
+    if (!os::create_thread(this, os::asyncperf_thread)) {
+      if (PrintMiscellaneous && Verbose) {
+        warning("PerfAsyncSharedMem failed to create thread.\n");
+      }
+      PerfAsyncSharedMem = false;
+    } else {
+      _initialized = true;
+    }
+  }
+  void run() {
+    assert(PerfAsyncSharedMem, "PerfAsyncSharedMem must be set.");
+    struct timespec ts;
+    ts.tv_sec = PerfDataSamplingInterval / 1000;
+    ts.tv_nsec = (PerfDataSamplingInterval % 1000) * 1000000;
+    while (true) {
+      ::nanosleep(&ts, NULL);
+      long start;
+      if (PrintMiscellaneous && Verbose) {
+        start = os::javaTimeNanos();
+      }
+      ::memcpy(PerfMemory::shared_start(), PerfMemory::start(), PerfMemory::used());
+      if (PrintMiscellaneous && Verbose) {
+        long end = os::javaTimeNanos();
+	warning("Asyncronously copied perf counters in " JLONG_FORMAT " ns", end - start);
+      }
+    }
+  }
+  char* name() const { return (char*)"AsyncPerf Thread"; }
+  const char* type_name() const { return "AsyncPerfWriter"; }
+  void print_on(outputStream* st) const {
+    st->print("\"%s\" ", name());
+    Thread::print_on(st);
+    st->cr();
+  }
+};
+
 /*
  * The engage() method is called at initialization time via
  * Thread::create_vm() to initialize the StatSampler and
  * register it with the WatcherThread as a periodic task.
+ *
+ * Also starts an asynchronous perf thread to write the perf
+ * counters to shared memory if PerfAsyncSharedMem is set.
  */
 void StatSampler::engage() {
 
@@ -102,6 +147,17 @@ void StatSampler::engage() {
     // start up the periodic task
     _task = new StatSamplerTask(PerfDataSamplingInterval);
     _task->enroll();
+  }
+  if (PerfAsyncSharedMem) {
+    AsyncPerfWriter* apw = new AsyncPerfWriter();
+    if (apw->_initialized) {
+      os::start_thread(apw);
+      if (PrintMiscellaneous && Verbose) {
+        warning("Async perf thread started.\n");
+      }
+    } else {
+      delete apw;
+    }
   }
 }
 

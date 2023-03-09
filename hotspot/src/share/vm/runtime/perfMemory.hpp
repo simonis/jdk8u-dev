@@ -115,6 +115,8 @@ class PerfMemory : AllStatic {
     friend class VMStructs;
   private:
     static char*  _start;
+    // Only used if PerfAsyncSharedMem is true
+    static char*  _shared_start;
     static char*  _end;
     static char*  _top;
     static size_t _capacity;
@@ -131,6 +133,7 @@ class PerfMemory : AllStatic {
     };
 
     static char* alloc(size_t size);
+    static char* shared_start() { return _shared_start; }
     static char* start() { return _start; }
     static char* end() { return _end; }
     static size_t used() { return (size_t) (_top - _start); }
