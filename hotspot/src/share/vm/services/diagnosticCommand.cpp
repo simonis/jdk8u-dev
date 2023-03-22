@@ -27,6 +27,7 @@
 #include "gc_implementation/shared/vmGCOperations.hpp"
 #include "runtime/javaCalls.hpp"
 #include "runtime/os.hpp"
+#include "runtime/perfMemory.hpp"
 #include "services/diagnosticArgument.hpp"
 #include "services/diagnosticCommand.hpp"
 #include "services/diagnosticFramework.hpp"
@@ -72,6 +73,7 @@ void DCmdRegistrant::register_dcmds(){
   DCmdFactory::register_DCmdFactory(new DCmdFactoryImpl<JMXStartLocalDCmd>(jmx_agent_export_flags, true,false));
   DCmdFactory::register_DCmdFactory(new DCmdFactoryImpl<JMXStopRemoteDCmd>(jmx_agent_export_flags, true,false));
 
+  DCmdFactory::register_DCmdFactory(new DCmdFactoryImpl<PerfDataDCmd>(full_export, true, false));
 }
 
 #ifndef HAVE_EXTRA_DCMD
@@ -735,4 +737,11 @@ void RotateGCLogDCmd::execute(DCmdSource source, TRAPS) {
   } else {
     output()->print_cr("Target VM does not support GC log file rotation.");
   }
+}
+
+void PerfDataDCmd::execute(DCmdSource source, TRAPS) {
+  if (!UsePerfData) {
+    return;
+  }
+  output()->print_raw(PerfMemory::start(), PerfMemory::used());
 }
